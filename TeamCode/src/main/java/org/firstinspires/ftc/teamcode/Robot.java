@@ -1,66 +1,28 @@
-/*   MIT License
- *   Copyright (c) [2026] [Base 10 Assets, LLC]
- *
- *   Permission is hereby granted, free of charge, to any person obtaining a copy
- *   of this software and associated documentation files (the "Software"), to deal
- *   in the Software without restriction, including without limitation the rights
- *   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- *   copies of the Software, and to permit persons to whom the Software is
- *   furnished to do so, subject to the following conditions:
-
- *   The above copyright notice and this permission notice shall be included in all
- *   copies or substantial portions of the Software.
-
- *   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- *   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- *   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- *   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- *   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- *   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- *   SOFTWARE.
- */
-
-
 package org.firstinspires.ftc.teamcode;
 
+import static com.pedropathing.ivy.commands.Commands.lazy;
 import static com.qualcomm.robotcore.hardware.DcMotor.ZeroPowerBehavior.BRAKE;
+
+import static org.firstinspires.ftc.robotcore.external.BlocksOpModeCompanion.telemetry;
 
 import com.pedropathing.drivetrain.DrivePowers;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.follower.ManualDrive;
+import com.pedropathing.ivy.Command;
+import com.pedropathing.ivy.Scheduler;
 import com.pedropathing.math.Pose;
-import com.qualcomm.robotcore.eventloop.opmode.OpMode;
-import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.pedro.Constants;
 
-
-/*
- * This file includes a teleop (driver-controlled) file for the goBILDA® StarterBot for the
- * 2026-2027 FIRST® Tech Challenge. It leverages a differential/Skid-Steer system for robot mobility,
- * one motor driving an intake roller, two servos which pull elements out of corners, and a high-speed
- * launcher motor.
- *
- * Likely the most niche concept we'll use in this example is closed-loop motor velocity control.
- * This control method reads the current speed as reported by the motor's encoder and applies a varying
- * amount of power to reach, and then hold a target velocity. The FTC SDK calls this control method
- * "RUN_USING_ENCODER". This contrasts to the default "RUN_WITHOUT_ENCODER" where you control the power
- * applied to the motor directly.
- * Since the dynamics of a launcher wheel system varies greatly from those of most other FTC mechanisms,
- * we will also need to adjust the "PIDF" coefficients with some that are a better fit for our application.
- */
-
-@TeleOp(name = "Pedro-based StarterBot Teleop", group = "StarterBot")
-//@Disabled
-public class MyTeleop extends OpMode {
+public class Robot {
     private Follower follower;
-
-    // Declare OpMode members.
     private DcMotorEx launcher = null;
     private DcMotor intake = null;
     private CRServo leftIntakeServo = null;
@@ -80,22 +42,19 @@ public class MyTeleop extends OpMode {
     public final int LAUNCHER_TARGET_VELOCITY = 1250;
     public final int LAUNCHER_MIN_VELOCITY = 1200;
 
-    /*
-     * These two variables store the power we need to apply to the motors. In other cases, we may
-     * choose to declare these variables inside the arcadeDrive() function, instead we declare them
-     * here so that we can access them in our main loop for telemetry.
-     */
-    double leftPower;
-    double rightPower;
 
-    // Create a variable to set to the intake.
-    double intakePower;
+    public enum RobotSide {
+        RED,
+        BLUE
+    }
+    private final Telemetry telemetry;
+    private final RobotSide robotSide;
 
-    /*
-     * Code to run ONCE when the driver hits INIT
-     */
-    @Override
-    public void init() {
+
+    public Robot (Telemetry telemetry, HardwareMap hardwareMap, RobotSide robotSide){
+        Scheduler.reset();
+        this.telemetry = telemetry;
+        this.robotSide = robotSide;
         follower = Constants.create(hardwareMap);
 
         /*
@@ -136,10 +95,10 @@ public class MyTeleop extends OpMode {
         windmillServo.setPower(0);
 
         /*
-         * Much like our drivetrain motors, we set the right intake servo to reverse so that both
+         * Much like our drivetrain motors, we set the left intake servo to reverse so that both
          * servos work to pull elements into the intake.
          */
-        rightIntakeServo.setDirection(DcMotorSimple.Direction.REVERSE);
+        leftIntakeServo.setDirection(DcMotorSimple.Direction.REVERSE);
         windmillServo.setDirection(DcMotorSimple.Direction.REVERSE);
 
         /*
@@ -147,65 +106,26 @@ public class MyTeleop extends OpMode {
          */
         telemetry.addData("Status", "Initialized");
     }
-
-    /*
-     * Code to run REPEATEDLY after the driver hits INIT, but before they hit START
-     */
-    @Override
-    public void init_loop() {
-    }
-
-    /*
-     * Code to run ONCE when the driver hits START
-     */
-    @Override
-    public void start() {
-    }
-
-    /*
-     * Code to run REPEATEDLY after the driver hits START but before they hit STOP
-     */
-    @Override
-    public void loop() {
-// Pedro Pathing driving
-        if(gamepad1.optionsWasPressed()) {
-            follower.setPose(follower.pose().withHeading(0));
-            follower.manual(0,0,0);
-        }
+public void resetHeading(){
+    follower.setPose(follower.pose().withHeading(0));
+    follower.manual(0,0,0);
+}
+    public void driveFieldCentric(double forward, double strafe, double omega){
+        // Pedro Pathing driving
         DrivePowers powers = ManualDrive.fieldCentric(
-                -gamepad1.left_stick_y,
-                -gamepad1.left_stick_x,
-                -gamepad1.right_stick_x,
+                forward,strafe,omega,
                 follower.pose().heading()
         );
 
-            ManualDrive.driveOrHold(follower, powers);
+        ManualDrive.driveOrHold(follower, powers);
         follower.update();
         Pose robotPose = follower.pose(); // returns a Pose object
         telemetry.addData("Robot X", robotPose.x());
         telemetry.addData("Robot Y", robotPose.y());
         telemetry.addData("Robot Heading", Math.toDegrees(robotPose.heading()));
 
-        /*
-         * Set the intake power variable to equal the right trigger, minus the left trigger.
-         * Each trigger outputs a signal from 0-1, with 0 as fully released, and 1 fully depressed.
-         * This gives us proportional control of the intake speed. The speed increases as we pull
-         * the right trigger further. It's occasionally helpful to be able to reverse the intake,
-         * so we also factor in the left trigger. If the left trigger is fully depressed,
-         * the intakePower variable will be -1. If the right trigger is fully depressed, the variable
-         * will be 1. If the driver pulls both triggers, the intake will remain off.
-         * We use this technique (creating a variable, and setting it to our control inputs) to
-         * allow us to avoid setting the same motors/servos power more than once per loop. That can
-         * create erratic behavior.
-         */
-        intakePower = gamepad1.right_trigger - gamepad1.left_trigger;
-
-        /*
-         * The launch() function handles setting motor velocity, and running the windmill servo
-         * to feed the elements into the launcher wheel.
-         */
-        launch();
-
+    }
+    public void intake(double intakePower){
         /*
          * Here we set our intake motor and servos to their intake power. The order of operations
          * here is important though. The gamepad triggers define the starting point for the intake
@@ -216,22 +136,7 @@ public class MyTeleop extends OpMode {
         intake.setPower(intakePower);
         leftIntakeServo.setPower(intakePower);
         rightIntakeServo.setPower(intakePower);
-
-        /*
-         * Show motor powers on the Driver Station via telemetry.
-         */
-        telemetry.addData("Motors", "left (%.2f), right (%.2f)", leftPower, rightPower);
-        telemetry.addLine();
-
     }
-
-    /*
-     * Code to run ONCE after the driver hits STOP
-     */
-    @Override
-    public void stop() {
-    }
-
     void launch() {
         /*
          * Calling gamepad1.right_bumper returns a boolean which will be true if the bumper is
@@ -241,11 +146,7 @@ public class MyTeleop extends OpMode {
          * holding down the right gamepad. If they are, then we want to start spinning up the launcher.
          * Otherwise, we start spinning the launcher down.
          */
-        if (gamepad1.right_bumper) {
             launcher.setVelocity(LAUNCHER_TARGET_VELOCITY);
-        } else {
-            launcher.setVelocity(0);
-        }
 
         /*
          * Here we ask if the driver is currently pressing the right bumper, AND the launcher is
@@ -254,13 +155,28 @@ public class MyTeleop extends OpMode {
          * add some power to the intake power. This can sometimes help dislodge stuck elements from
          * inside the hopper.
          */
-        if (gamepad1.right_bumper && launcher.getVelocity() > LAUNCHER_MIN_VELOCITY) {
+        telemetry.addData("launcher velo", launcher.getVelocity());
+        if (launcher.getVelocity() > LAUNCHER_MIN_VELOCITY) {
             windmillServo.setPower(1);
-            intakePower += 0.5;
+            intake(.5);
         } else {
             windmillServo.setPower(0);
         }
+telemetry.addData("servo power",windmillServo.getPower());
+    }
+    public void stopMotors(){
+        windmillServo.setPower(0);
+        launcher.setVelocity(0);
+        leftIntakeServo.setPower(0);
+        rightIntakeServo.setPower(0);
+        intake.setPower(0);
     }
 
+    public Command launchCommand(){
+        return Command.build().setExecute(this::launch).setEnd((c)->stopMotors()).requiring(windmillServo,launcher,intake);
+    }
+    public Command intakeCommand(double intakePower){
+        return Command.build().setExecute(() -> intake(intakePower)).setEnd((c)-> stopMotors()).requiring(intake,leftIntakeServo,rightIntakeServo);
+    }
 
 }

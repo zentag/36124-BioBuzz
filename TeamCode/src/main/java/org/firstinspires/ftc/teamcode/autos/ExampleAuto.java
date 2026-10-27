@@ -2,6 +2,8 @@ package org.firstinspires.ftc.teamcode.autos; // This should match the file loca
 
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+
+import org.firstinspires.ftc.teamcode.Robot;
 import org.firstinspires.ftc.teamcode.pedro.Constants;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.api.PoseFactory;
@@ -10,6 +12,9 @@ import static com.pedropathing.api.Paths.*;
 import com.pedropathing.paths.Path;
 import com.pedropathing.ivy.Scheduler;
 import static com.pedropathing.ivy.Scheduler.schedule;
+import static com.pedropathing.ivy.commands.Commands.waitMs;
+import static com.pedropathing.ivy.groups.Groups.race;
+import static com.pedropathing.ivy.groups.Groups.sequential;
 import static com.pedropathing.ivy.pedro.PedroCommands.follow;
 
 
@@ -18,22 +23,37 @@ public class ExampleAuto extends OpMode {
     private Follower follower;
     private final PoseFactory p = PoseFactory.degrees();
 
-    private final Pose startPose = p.of(24, 24, 0);
-    private final Pose park = p.of(48, 48, 90);
+    private final Pose startPose = p.of(58, 8, -90);
+    private final Pose garden = p.of(8, 8, -90);
+    private final Pose toGardenControl = p.of(12, 27, 0);
+
+    private Robot robot;
     @Override
     public void init() {
+        robot = new Robot(telemetry,hardwareMap, Robot.RobotSide.BLUE);
         Scheduler.reset();
 
         follower = Constants.create(hardwareMap);
         follower.setPose(startPose);
         follower.update();
     }
-    private Path park() {
-        return line(startPose, park).linear(startPose, park);
+    private Path toGarden() {
+        return curve(startPose, toGardenControl, garden).linear(startPose, garden);
+    }
+    private Path backToShoot(){
+        return curve(garden,toGardenControl,startPose).linear(garden,startPose);
     }
     @Override
     public void start() {
-        schedule(follow(follower, park()));
+        schedule(sequential(
+                race(robot.launchCommand(),waitMs(5000)),
+                follow(follower, toGarden()),
+                race(robot.intakeCommand(1),waitMs(4000)),
+                follow(follower,backToShoot()),
+                robot.launchCommand()
+
+
+        ));
 
     }
 
