@@ -220,7 +220,7 @@ public class Robot {
                         forward.getAsDouble(),
                         strafe.getAsDouble(),
                         omega.getAsDouble()
-                )).setEnd((c) ->  follower.manual(0,0,0))
+                ))
                 .requiring(follower)
                 .setInterruptedBehavior(InterruptedBehavior.SUSPEND)
                 .setPriority(5);
@@ -229,7 +229,8 @@ public class Robot {
     public Command driveInDirectionCommand(double direction) {
         return Command.build().setExecute(() -> {
                     driveInDirection(direction);
-                }).requiring(follower)
+                }).setEnd((c) ->  follower.manual(0,0,0))
+                .requiring(follower)
                 .setPriority(10);
     }
 
