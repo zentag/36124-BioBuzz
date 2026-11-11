@@ -5,12 +5,16 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 
 import org.firstinspires.ftc.teamcode.Robot;
 import org.firstinspires.ftc.teamcode.pedro.Constants;
+
 import com.pedropathing.follower.Follower;
 import com.pedropathing.api.PoseFactory;
 import com.pedropathing.math.Pose;
+
 import static com.pedropathing.api.Paths.*;
+
 import com.pedropathing.paths.Path;
 import com.pedropathing.ivy.Scheduler;
+
 import static com.pedropathing.ivy.Scheduler.schedule;
 import static com.pedropathing.ivy.commands.Commands.lazy;
 import static com.pedropathing.ivy.commands.Commands.waitMs;
@@ -33,28 +37,32 @@ public class ExampleAuto extends OpMode {
 
     @Override
     public void init() {
-        robot = new Robot(telemetry,hardwareMap, Robot.RobotSide.BLUE);
+        robot = new Robot(telemetry, hardwareMap, Robot.RobotSide.BLUE);
         Scheduler.reset();
 
         robot.setPose(startPose);
     }
+
     private Path toGarden() {
         return curve(startPose, toGardenControl, garden).linear(startPose, garden);
     }
-    private Path backToShoot(){
-        return curve(garden,toGardenControl,startPose).linear(garden,startPose);
+
+    private Path backToShoot() {
+        return curve(garden, toGardenControl, startPose).linear(garden, startPose);
     }
-    private Path otherSideShoot(){
+
+    private Path otherSideShoot() {
         return curve(garden, otherSideControl1, otherSideControl2, toOtherSideShoot).linear(garden, toOtherSideShoot);
     }
+
     @Override
     public void start() {
         schedule(sequential(
-                race(robot.launchCommand(),waitMs(3000)),
+                race(robot.launchCommand(), waitMs(3000)),
                 robot.followPath(toGarden()),
-                race(robot.intakeCommand(1),waitMs(2500)),
+                race(robot.intakeCommand(1), waitMs(2500)),
                 robot.followPath(otherSideShoot()),
-                race(robot.launchCommand() ,waitMs(3000)),
+                race(robot.launchCommand(), waitMs(3000)),
                 //robot follows camera to collect pollen, robot go back to otherSideShoot
                 lazy(() -> robot.driveInDirectionCommand(robot.getBiggestPollenDirection()))
 

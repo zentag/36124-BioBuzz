@@ -62,7 +62,7 @@ public class MainTeleop extends OpMode {
      */
     @Override
     public void init() {
-robot = new Robot(telemetry,hardwareMap,Robot.RobotSide.BLUE);
+        robot = new Robot(telemetry, hardwareMap, Robot.RobotSide.BLUE);
     }
 
     /*
@@ -88,8 +88,8 @@ robot = new Robot(telemetry,hardwareMap,Robot.RobotSide.BLUE);
     @Override
     public void loop() {
         Scheduler.execute();
-robot.loop();
-if(gamepad1.options) robot.resetHeading();
+        robot.loop();
+        if (gamepad1.options) robot.resetHeading();
 
         /*
          * Set the intake power variable to equal the right trigger, minus the left trigger.
@@ -104,13 +104,14 @@ if(gamepad1.options) robot.resetHeading();
          * create erratic behavior.
          */
         intakePower = gamepad1.right_trigger - gamepad1.left_trigger;
-robot.intake(intakePower);
+        robot.intake(intakePower);
 
         /*
          * The launch() function handles setting motor velocity, and running the windmill servo
          * to feed the elements into the launcher wheel.
          */
-        if(gamepad1.rightBumperWasPressed()) schedule(robot.launchCommand().until(() -> gamepad1.rightBumperWasReleased()));
+        if (gamepad1.rightBumperWasPressed())
+            schedule(robot.launchCommand().until(() -> gamepad1.rightBumperWasReleased()));
 
         if (gamepad1.xWasPressed()) {
             schedule(robot.driveInDirectionCommand(robot.getBiggestPollenDirection()));
@@ -130,8 +131,6 @@ robot.intake(intakePower);
     @Override
     public void stop() {
     }
-
-
 
 
 }

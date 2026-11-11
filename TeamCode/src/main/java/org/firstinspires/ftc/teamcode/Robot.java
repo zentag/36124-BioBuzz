@@ -54,11 +54,12 @@ public class Robot {
         RED,
         BLUE
     }
+
     private final Telemetry telemetry;
     private final RobotSide robotSide;
 
 
-    public Robot (Telemetry telemetry, HardwareMap hardwareMap, RobotSide robotSide){
+    public Robot(Telemetry telemetry, HardwareMap hardwareMap, RobotSide robotSide) {
         Scheduler.reset();
         this.telemetry = telemetry;
         this.robotSide = robotSide;
@@ -114,17 +115,20 @@ public class Robot {
          */
         telemetry.addData("Status", "Initialized");
     }
-    public void loop (){
+
+    public void loop() {
         follower.update();
     }
-public void resetHeading(){
-    follower.setPose(follower.pose().withHeading(0));
-    follower.manual(0,0,0);
-}
-    public void driveFieldCentric(double forward, double strafe, double omega){
+
+    public void resetHeading() {
+        follower.setPose(follower.pose().withHeading(0));
+        follower.manual(0, 0, 0);
+    }
+
+    public void driveFieldCentric(double forward, double strafe, double omega) {
         // Pedro Pathing driving
         DrivePowers powers = ManualDrive.fieldCentric(
-                forward,strafe,omega,
+                forward, strafe, omega,
                 follower.pose().heading()
         );
 
@@ -135,7 +139,8 @@ public void resetHeading(){
         telemetry.addData("Robot Heading", Math.toDegrees(robotPose.heading()));
 
     }
-    public void intake(double intakePower){
+
+    public void intake(double intakePower) {
         /*
          * Here we set our intake motor and servos to their intake power. The order of operations
          * here is important though. The gamepad triggers define the starting point for the intake
@@ -147,6 +152,7 @@ public void resetHeading(){
         leftIntakeServo.setPower(intakePower);
         rightIntakeServo.setPower(intakePower);
     }
+
     void launch() {
         /*
          * Calling gamepad1.right_bumper returns a boolean which will be true if the bumper is
@@ -156,7 +162,7 @@ public void resetHeading(){
          * holding down the right gamepad. If they are, then we want to start spinning up the launcher.
          * Otherwise, we start spinning the launcher down.
          */
-            launcher.setVelocity(LAUNCHER_TARGET_VELOCITY);
+        launcher.setVelocity(LAUNCHER_TARGET_VELOCITY);
 
         /*
          * Here we ask if the driver is currently pressing the right bumper, AND the launcher is
@@ -172,9 +178,10 @@ public void resetHeading(){
         } else {
             windmillServo.setPower(0);
         }
-telemetry.addData("servo power",windmillServo.getPower());
+        telemetry.addData("servo power", windmillServo.getPower());
     }
-    public void stopMotors(){
+
+    public void stopMotors() {
         windmillServo.setPower(0);
         launcher.setVelocity(0);
         leftIntakeServo.setPower(0);
@@ -182,45 +189,52 @@ telemetry.addData("servo power",windmillServo.getPower());
         intake.setPower(0);
     }
 
-    public Command launchCommand(){
-        return Command.build().setExecute(this::launch).setEnd((c)->stopMotors()).requiring(windmillServo,launcher,intake);
+    public Command launchCommand() {
+        return Command.build().setExecute(this::launch).setEnd((c) -> stopMotors()).requiring(windmillServo, launcher, intake);
     }
-    public Command intakeCommand(double intakePower){
-        return Command.build().setExecute(() -> intake(intakePower)).setEnd((c)-> stopMotors()).requiring(intake,leftIntakeServo,rightIntakeServo);
+
+    public Command intakeCommand(double intakePower) {
+        return Command.build().setExecute(() -> intake(intakePower)).setEnd((c) -> stopMotors()).requiring(intake, leftIntakeServo, rightIntakeServo);
     }
-    public void driveInDirection(double direction){
-        DrivePowers powers = ManualDrive.headingLock(follower, Constants.foresightConfig.headingFeedback.get(), new DrivePowers(0,0,0),direction);
+
+    public void driveInDirection(double direction) {
+        DrivePowers powers = ManualDrive.headingLock(follower, Constants.foresightConfig.headingFeedback.get(), new DrivePowers(0, 0, 0), direction);
         follower.manual(
                 powers
         );
     }
-    public Command driveFieldCentricCommand(DoubleSupplier forward, DoubleSupplier strafe, DoubleSupplier omega){
+
+    public Command driveFieldCentricCommand(DoubleSupplier forward, DoubleSupplier strafe, DoubleSupplier omega) {
         return Command.build().setExecute(() -> driveFieldCentric(
                 forward.getAsDouble(),
                 strafe.getAsDouble(),
                 omega.getAsDouble()
         )).requiring(follower);
     }
-    public Command driveInDirectionCommand(double direction){
+
+    public Command driveInDirectionCommand(double direction) {
         return Command.build().setExecute(() -> {
-    driveInDirection(direction);
+            driveInDirection(direction);
         }).requiring(follower);
     }
-    public void setPose(Pose pose){
+
+    public void setPose(Pose pose) {
         follower.setPose(pose);
     }
-    public Command followPath (Path path){
-        return follow(follower,path);
+
+    public Command followPath(Path path) {
+        return follow(follower, path);
     }
-    public double getBiggestPollenDirection(){
+
+    public double getBiggestPollenDirection() {
         HuskyLens.Block[] blocks = huskyLens.blocks();
-        if(blocks.length == 0) return follower.pose().heading();
+        if (blocks.length == 0) return follower.pose().heading();
         int bestScore = 0;
         HuskyLens.Block primaryBlock = blocks[0];
         for (int i = 0; i < blocks.length; i++) {
             int area = blocks[i].width * blocks[i].height;
             int score = area;
-            if(score > bestScore){
+            if (score > bestScore) {
                 primaryBlock = blocks[i];
                 bestScore = score;
             }
@@ -240,8 +254,8 @@ telemetry.addData("servo power",windmillServo.getPower());
         double halfOfCameraFOVRadians = Math.toRadians(60 / 2);
         double thetaRadians = Math.atan(
                 (2 * distanceFromCenter * Math.tan(halfOfCameraFOVRadians))
-                /
-                screenWidth
+                        /
+                        screenWidth
         );
         double thetaDegrees = Math.toDegrees(thetaRadians);
         telemetry.addData("relative angle", thetaDegrees);
