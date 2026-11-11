@@ -1,12 +1,8 @@
 package org.firstinspires.ftc.teamcode;
 
-import static com.pedropathing.ivy.commands.Commands.lazy;
 import static com.pedropathing.ivy.pedro.PedroCommands.follow;
 import static com.qualcomm.robotcore.hardware.DcMotor.ZeroPowerBehavior.BRAKE;
 
-import static org.firstinspires.ftc.robotcore.external.BlocksOpModeCompanion.telemetry;
-
-import com.pedropathing.controllers.Controller;
 import com.pedropathing.drivetrain.DrivePowers;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.follower.ManualDrive;
@@ -181,20 +177,20 @@ public class Robot {
         telemetry.addData("servo power", windmillServo.getPower());
     }
 
-    public void stopMotors() {
-        windmillServo.setPower(0);
-        launcher.setVelocity(0);
-        leftIntakeServo.setPower(0);
-        rightIntakeServo.setPower(0);
-        intake.setPower(0);
-    }
-
     public Command launchCommand() {
-        return Command.build().setExecute(this::launch).setEnd((c) -> stopMotors()).requiring(windmillServo, launcher, intake);
+        return Command.build().setExecute(this::launch).setEnd((c) -> {
+            windmillServo.setPower(0);
+            intake.setPower(0);
+            launcher.setVelocity(0);
+        }).requiring(windmillServo, launcher, intake);
     }
 
-    public Command intakeCommand(double intakePower) {
-        return Command.build().setExecute(() -> intake(intakePower)).setEnd((c) -> stopMotors()).requiring(intake, leftIntakeServo, rightIntakeServo);
+    public Command intakeCommand(DoubleSupplier intakePower) {
+        return Command.build().setExecute(() -> intake(intakePower.getAsDouble())).setEnd((c) -> {
+            intake.setPower(0);
+            leftIntakeServo.setPower(0);
+            rightIntakeServo.setPower(0);
+        }).requiring(intake, leftIntakeServo, rightIntakeServo);
     }
 
     public void driveInDirection(double direction) {

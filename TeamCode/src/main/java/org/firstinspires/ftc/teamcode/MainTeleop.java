@@ -27,6 +27,7 @@ import static com.pedropathing.ivy.Scheduler.schedule;
 
 import com.pedropathing.drivetrain.DrivePowers;
 import com.pedropathing.follower.ManualDrive;
+import com.pedropathing.ivy.Command;
 import com.pedropathing.ivy.Scheduler;
 import com.pedropathing.math.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
@@ -80,6 +81,8 @@ public class MainTeleop extends OpMode {
         schedule(robot.driveFieldCentricCommand(() -> -gamepad1.left_stick_y,
                 () -> -gamepad1.left_stick_x,
                 () -> -gamepad1.right_stick_x));
+        schedule(robot.intakeCommand(() -> intakePower));
+
     }
 
     /*
@@ -104,22 +107,16 @@ public class MainTeleop extends OpMode {
          * create erratic behavior.
          */
         intakePower = gamepad1.right_trigger - gamepad1.left_trigger;
-        robot.intake(intakePower);
 
         /*
          * The launch() function handles setting motor velocity, and running the windmill servo
          * to feed the elements into the launcher wheel.
          */
         if (gamepad1.rightBumperWasPressed())
-            schedule(robot.launchCommand().until(() -> gamepad1.rightBumperWasReleased()));
+            schedule(robot.launchCommand().until(() -> gamepad1.rightBumperWasReleased()).then(robot.intakeCommand(() -> intakePower)));
 
         if (gamepad1.xWasPressed()) {
-            schedule(robot.driveInDirectionCommand(robot.getBiggestPollenDirection()));
-        }
-        if (gamepad1.xWasReleased()) {
-            schedule(robot.driveFieldCentricCommand(() -> -gamepad1.left_stick_y,
-                    () -> -gamepad1.left_stick_x,
-                    () -> -gamepad1.right_stick_x));
+            schedule(robot.driveInDirectionCommand(robot.getBiggestPollenDirection()).until(() -> gamepad1.xWasReleased()).then(driveFieldCentric()));
         }
 
 
@@ -130,6 +127,12 @@ public class MainTeleop extends OpMode {
      */
     @Override
     public void stop() {
+    }
+
+    public Command driveFieldCentric() {
+        return robot.driveFieldCentricCommand(() -> -gamepad1.left_stick_y,
+                () -> -gamepad1.left_stick_x,
+                () -> -gamepad1.right_stick_x);
     }
 
 

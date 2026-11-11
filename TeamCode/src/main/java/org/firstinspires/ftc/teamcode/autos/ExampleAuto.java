@@ -60,7 +60,7 @@ public class ExampleAuto extends OpMode {
         schedule(sequential(
                 race(robot.launchCommand(), waitMs(3000)),
                 robot.followPath(toGarden()),
-                race(robot.intakeCommand(1), waitMs(2500)),
+                race(robot.intakeCommand(() -> 1), waitMs(2500)),
                 robot.followPath(otherSideShoot()),
                 race(robot.launchCommand(), waitMs(3000)),
                 //robot follows camera to collect pollen, robot go back to otherSideShoot
