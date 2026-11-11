@@ -21,17 +21,16 @@
  */
 
 
-package org.firstinspires.ftc.teamcode;
+package org.firstinspires.ftc.teamcode.teleops;
 
 import static com.pedropathing.ivy.Scheduler.schedule;
 
-import com.pedropathing.drivetrain.DrivePowers;
-import com.pedropathing.follower.ManualDrive;
 import com.pedropathing.ivy.Command;
 import com.pedropathing.ivy.Scheduler;
-import com.pedropathing.math.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+
+import org.firstinspires.ftc.teamcode.Robot;
 
 
 /*
@@ -49,21 +48,20 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
  * we will also need to adjust the "PIDF" coefficients with some that are a better fit for our application.
  */
 
-@TeleOp(name = "Pedro-based StarterBot Teleop", group = "StarterBot")
-//@Disabled
 public class MainTeleop extends OpMode {
 
     private Robot robot;
+    public Robot.RobotSide robotSide = Robot.RobotSide.BLUE;
 
     // Create a variable to set to the intake.
-    double intakePower;
+    double intakePower = 0;
 
     /*
      * Code to run ONCE when the driver hits INIT
      */
     @Override
     public void init() {
-        robot = new Robot(telemetry, hardwareMap, Robot.RobotSide.BLUE);
+        robot = new Robot(telemetry, hardwareMap, robotSide);
     }
 
     /*
