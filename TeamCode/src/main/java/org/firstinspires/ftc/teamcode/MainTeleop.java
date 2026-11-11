@@ -77,6 +77,9 @@ robot = new Robot(telemetry,hardwareMap,Robot.RobotSide.BLUE);
      */
     @Override
     public void start() {
+        schedule(robot.driveFieldCentricCommand(() -> -gamepad1.left_stick_y,
+                () -> -gamepad1.left_stick_x,
+                () -> -gamepad1.right_stick_x));
     }
 
     /*
@@ -85,9 +88,7 @@ robot = new Robot(telemetry,hardwareMap,Robot.RobotSide.BLUE);
     @Override
     public void loop() {
         Scheduler.execute();
-robot.driveFieldCentric(-gamepad1.left_stick_y,
-                -gamepad1.left_stick_x,
-                -gamepad1.right_stick_x);
+robot.loop();
 if(gamepad1.options) robot.resetHeading();
 
         /*
@@ -111,6 +112,14 @@ robot.intake(intakePower);
          */
         if(gamepad1.rightBumperWasPressed()) schedule(robot.launchCommand().until(() -> gamepad1.rightBumperWasReleased()));
 
+        if (gamepad1.xWasPressed()) {
+            schedule(robot.driveInDirectionCommand(robot.getBiggestPollenDirection()));
+        }
+        if (gamepad1.xWasReleased()) {
+            schedule(robot.driveFieldCentricCommand(() -> -gamepad1.left_stick_y,
+                    () -> -gamepad1.left_stick_x,
+                    () -> -gamepad1.right_stick_x));
+        }
 
 
     }

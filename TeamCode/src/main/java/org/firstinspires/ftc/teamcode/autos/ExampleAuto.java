@@ -12,6 +12,7 @@ import static com.pedropathing.api.Paths.*;
 import com.pedropathing.paths.Path;
 import com.pedropathing.ivy.Scheduler;
 import static com.pedropathing.ivy.Scheduler.schedule;
+import static com.pedropathing.ivy.commands.Commands.lazy;
 import static com.pedropathing.ivy.commands.Commands.waitMs;
 import static com.pedropathing.ivy.groups.Groups.race;
 import static com.pedropathing.ivy.groups.Groups.sequential;
@@ -20,22 +21,22 @@ import static com.pedropathing.ivy.pedro.PedroCommands.follow;
 
 @Autonomous
 public class ExampleAuto extends OpMode {
-    private Follower follower;
     private final PoseFactory p = PoseFactory.degrees();
 
     private final Pose startPose = p.of(58, 8, -90);
     private final Pose garden = p.of(8, 8, -90);
     private final Pose toGardenControl = p.of(12, 27, 0);
-
+    private final Pose toOtherSideShoot = p.of(58, 130, 90);
+    private final Pose otherSideControl1 = p.of(57, 94, 0);
+    private final Pose otherSideControl2 = p.of(5, 67, 0);
     private Robot robot;
+
     @Override
     public void init() {
         robot = new Robot(telemetry,hardwareMap, Robot.RobotSide.BLUE);
         Scheduler.reset();
 
-        follower = Constants.create(hardwareMap);
-        follower.setPose(startPose);
-        follower.update();
+        robot.setPose(startPose);
     }
     private Path toGarden() {
         return curve(startPose, toGardenControl, garden).linear(startPose, garden);
@@ -43,14 +44,19 @@ public class ExampleAuto extends OpMode {
     private Path backToShoot(){
         return curve(garden,toGardenControl,startPose).linear(garden,startPose);
     }
+    private Path otherSideShoot(){
+        return curve(garden, otherSideControl1, otherSideControl2, toOtherSideShoot).linear(garden, toOtherSideShoot);
+    }
     @Override
     public void start() {
         schedule(sequential(
-                race(robot.launchCommand(),waitMs(5000)),
-                follow(follower, toGarden()),
-                race(robot.intakeCommand(1),waitMs(4000)),
-                follow(follower,backToShoot()),
-                robot.launchCommand()
+                race(robot.launchCommand(),waitMs(3000)),
+                robot.followPath(toGarden()),
+                race(robot.intakeCommand(1),waitMs(2500)),
+                robot.followPath(otherSideShoot()),
+                race(robot.launchCommand() ,waitMs(3000)),
+                //robot follows camera to collect pollen, robot go back to otherSideShoot
+                lazy(() -> robot.driveInDirectionCommand(robot.getBiggestPollenDirection()))
 
 
         ));
@@ -59,7 +65,7 @@ public class ExampleAuto extends OpMode {
 
     @Override
     public void loop() {
-        follower.update();
         Scheduler.execute();
+        robot.loop();
     }
 }

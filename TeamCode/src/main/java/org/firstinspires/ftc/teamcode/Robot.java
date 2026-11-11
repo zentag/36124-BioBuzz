@@ -1,16 +1,20 @@
 package org.firstinspires.ftc.teamcode;
 
 import static com.pedropathing.ivy.commands.Commands.lazy;
+import static com.pedropathing.ivy.pedro.PedroCommands.follow;
 import static com.qualcomm.robotcore.hardware.DcMotor.ZeroPowerBehavior.BRAKE;
 
 import static org.firstinspires.ftc.robotcore.external.BlocksOpModeCompanion.telemetry;
 
+import com.pedropathing.controllers.Controller;
 import com.pedropathing.drivetrain.DrivePowers;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.follower.ManualDrive;
 import com.pedropathing.ivy.Command;
 import com.pedropathing.ivy.Scheduler;
 import com.pedropathing.math.Pose;
+import com.pedropathing.paths.Path;
+import com.qualcomm.hardware.dfrobot.HuskyLens;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
@@ -21,6 +25,8 @@ import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.pedro.Constants;
 
+import java.util.function.DoubleSupplier;
+
 public class Robot {
     private Follower follower;
     private DcMotorEx launcher = null;
@@ -29,6 +35,7 @@ public class Robot {
     private CRServo rightIntakeServo = null;
     private CRServo windmillServo = null;
 
+    private HuskyLens huskyLens;
     /*
      * These two variables are used to control the velocity of the launcher motor.
      * They are both in encoder ticks per second. The motors we use in the FIRST Tech Challenge
@@ -68,6 +75,7 @@ public class Robot {
         leftIntakeServo = hardwareMap.get(CRServo.class, "left_intake_servo");
         rightIntakeServo = hardwareMap.get(CRServo.class, "right_intake_servo");
 
+        huskyLens = hardwareMap.get(HuskyLens.class, "huskylens");
 
         /*
          * Setting zeroPowerBehavior to BRAKE enables a "brake mode". This causes the motor to
@@ -106,6 +114,9 @@ public class Robot {
          */
         telemetry.addData("Status", "Initialized");
     }
+    public void loop (){
+        follower.update();
+    }
 public void resetHeading(){
     follower.setPose(follower.pose().withHeading(0));
     follower.manual(0,0,0);
@@ -118,7 +129,6 @@ public void resetHeading(){
         );
 
         ManualDrive.driveOrHold(follower, powers);
-        follower.update();
         Pose robotPose = follower.pose(); // returns a Pose object
         telemetry.addData("Robot X", robotPose.x());
         telemetry.addData("Robot Y", robotPose.y());
@@ -177,6 +187,65 @@ telemetry.addData("servo power",windmillServo.getPower());
     }
     public Command intakeCommand(double intakePower){
         return Command.build().setExecute(() -> intake(intakePower)).setEnd((c)-> stopMotors()).requiring(intake,leftIntakeServo,rightIntakeServo);
+    }
+    public void driveInDirection(double direction){
+        DrivePowers powers = ManualDrive.headingLock(follower, Constants.foresightConfig.headingFeedback.get(), new DrivePowers(0,0,0),direction);
+        follower.manual(
+                powers
+        );
+    }
+    public Command driveFieldCentricCommand(DoubleSupplier forward, DoubleSupplier strafe, DoubleSupplier omega){
+        return Command.build().setExecute(() -> driveFieldCentric(
+                forward.getAsDouble(),
+                strafe.getAsDouble(),
+                omega.getAsDouble()
+        )).requiring(follower);
+    }
+    public Command driveInDirectionCommand(double direction){
+        return Command.build().setExecute(() -> {
+    driveInDirection(direction);
+        }).requiring(follower);
+    }
+    public void setPose(Pose pose){
+        follower.setPose(pose);
+    }
+    public Command followPath (Path path){
+        return follow(follower,path);
+    }
+    public double getBiggestPollenDirection(){
+        HuskyLens.Block[] blocks = huskyLens.blocks();
+        if(blocks.length == 0) return follower.pose().heading();
+        int bestScore = 0;
+        HuskyLens.Block primaryBlock = blocks[0];
+        for (int i = 0; i < blocks.length; i++) {
+            int area = blocks[i].width * blocks[i].height;
+            int score = area;
+            if(score > bestScore){
+                primaryBlock = blocks[i];
+                bestScore = score;
+            }
+            /*
+             * Here inside the FOR loop, you could save or evaluate specific info for the currently recognized Bounding Box:
+             * - blocks[i].width and blocks[i].height   (size of box, in pixels)
+             * - blocks[i].left and blocks[i].top       (edges of box)
+             * - blocks[i].x and blocks[i].y            (center location)
+             * - blocks[i].id                           (Color ID)
+             *
+             * These values have Java type int (integer).
+             */
+        }
+        telemetry.addData("block", primaryBlock);
+        int screenWidth = 240;
+        int distanceFromCenter = primaryBlock.y - (screenWidth / 2);
+        double halfOfCameraFOVRadians = Math.toRadians(60 / 2);
+        double thetaRadians = Math.atan(
+                (2 * distanceFromCenter * Math.tan(halfOfCameraFOVRadians))
+                /
+                screenWidth
+        );
+        double thetaDegrees = Math.toDegrees(thetaRadians);
+        telemetry.addData("relative angle", thetaDegrees);
+        return thetaRadians + follower.pose().heading();
     }
 
 }
