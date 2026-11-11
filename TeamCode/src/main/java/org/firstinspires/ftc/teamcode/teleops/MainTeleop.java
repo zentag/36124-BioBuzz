@@ -76,6 +76,7 @@ public class MainTeleop extends OpMode {
      */
     @Override
     public void start() {
+        // these low priority commands will be run whenever nothing of higher priority is running
         schedule(robot.driveFieldCentricCommand(() -> -gamepad1.left_stick_y,
                 () -> -gamepad1.left_stick_x,
                 () -> -gamepad1.right_stick_x));
@@ -111,10 +112,10 @@ public class MainTeleop extends OpMode {
          * to feed the elements into the launcher wheel.
          */
         if (gamepad1.rightBumperWasPressed())
-            schedule(robot.launchCommand().until(() -> gamepad1.rightBumperWasReleased()).then(robot.intakeCommand(() -> intakePower)));
+            schedule(robot.launchCommand().until(() -> gamepad1.rightBumperWasReleased()));
 
         if (gamepad1.xWasPressed()) {
-            schedule(robot.driveInDirectionCommand(robot.getBiggestPollenDirection()).until(() -> gamepad1.xWasReleased()).then(driveFieldCentric()));
+            schedule(robot.driveInDirectionCommand(robot.getBiggestPollenDirection()).until(() -> gamepad1.xWasReleased()));
         }
 
 

@@ -8,6 +8,7 @@ import com.pedropathing.follower.Follower;
 import com.pedropathing.follower.ManualDrive;
 import com.pedropathing.ivy.Command;
 import com.pedropathing.ivy.Scheduler;
+import com.pedropathing.ivy.behaviors.InterruptedBehavior;
 import com.pedropathing.math.Pose;
 import com.pedropathing.paths.Path;
 import com.qualcomm.hardware.dfrobot.HuskyLens;
@@ -180,18 +181,21 @@ public class Robot {
 
     public Command launchCommand() {
         return Command.build().setExecute(this::launch).setEnd((c) -> {
-            windmillServo.setPower(0);
-            intake.setPower(0);
-            launcher.setVelocity(0);
-        }).requiring(windmillServo, launcher, intake);
+                    windmillServo.setPower(0);
+                    intake.setPower(0);
+                    launcher.setVelocity(0);
+                }).requiring(windmillServo, launcher, intake)
+                .setPriority(10);
     }
 
     public Command intakeCommand(DoubleSupplier intakePower) {
         return Command.build().setExecute(() -> intake(intakePower.getAsDouble())).setEnd((c) -> {
-            intake.setPower(0);
-            leftIntakeServo.setPower(0);
-            rightIntakeServo.setPower(0);
-        }).requiring(intake, leftIntakeServo, rightIntakeServo);
+                    intake.setPower(0);
+                    leftIntakeServo.setPower(0);
+                    rightIntakeServo.setPower(0);
+                }).requiring(intake, leftIntakeServo, rightIntakeServo)
+                .setInterruptedBehavior(InterruptedBehavior.SUSPEND)
+                .setPriority(5);
     }
 
     public void driveInDirection(double direction) {
@@ -203,16 +207,19 @@ public class Robot {
 
     public Command driveFieldCentricCommand(DoubleSupplier forward, DoubleSupplier strafe, DoubleSupplier omega) {
         return Command.build().setExecute(() -> driveFieldCentric(
-                forward.getAsDouble(),
-                strafe.getAsDouble(),
-                omega.getAsDouble()
-        )).requiring(follower);
+                        forward.getAsDouble(),
+                        strafe.getAsDouble(),
+                        omega.getAsDouble()
+                )).requiring(follower)
+                .setInterruptedBehavior(InterruptedBehavior.SUSPEND)
+                .setPriority(5);
     }
 
     public Command driveInDirectionCommand(double direction) {
         return Command.build().setExecute(() -> {
-            driveInDirection(direction);
-        }).requiring(follower);
+                    driveInDirection(direction);
+                }).requiring(follower)
+                .setPriority(10);
     }
 
     public void setPose(Pose pose) {
