@@ -1,5 +1,8 @@
 package org.firstinspires.ftc.teamcode;
 
+import static com.pedropathing.ivy.commands.Commands.waitMs;
+import static com.pedropathing.ivy.groups.Groups.parallel;
+import static com.pedropathing.ivy.groups.Groups.race;
 import static com.pedropathing.ivy.pedro.PedroCommands.follow;
 import static com.qualcomm.robotcore.hardware.DcMotor.ZeroPowerBehavior.BRAKE;
 
@@ -16,10 +19,12 @@ import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.DistanceSensor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.pedro.Constants;
 
 import java.util.function.DoubleSupplier;
@@ -33,6 +38,8 @@ public class Robot {
     private CRServo windmillServo = null;
 
     private HuskyLens huskyLens;
+    private DistanceSensor intakeSensor;
+
     /*
      * These two variables are used to control the velocity of the launcher motor.
      * They are both in encoder ticks per second. The motors we use in the FIRST Tech Challenge
@@ -45,6 +52,8 @@ public class Robot {
      */
     public final int LAUNCHER_TARGET_VELOCITY = 1250;
     public final int LAUNCHER_MIN_VELOCITY = 1200;
+
+    public final int INTAKE_EMPTY_DISTANCE_CM = 21;
 
 
     public enum RobotSide {
@@ -74,7 +83,7 @@ public class Robot {
         rightIntakeServo = hardwareMap.get(CRServo.class, "right_intake_servo");
 
         huskyLens = hardwareMap.get(HuskyLens.class, "huskylens");
-
+        intakeSensor = hardwareMap.get(DistanceSensor.class, "intake_sensor");
         /*
          * Setting zeroPowerBehavior to BRAKE enables a "brake mode". This causes the motor to
          * slow down much faster when it is coasting. This creates a much more controllable
@@ -116,6 +125,7 @@ public class Robot {
 
     public void loop() {
         follower.update();
+        telemetry.addData("pollen in intake?", intakeSensor.getDistance(DistanceUnit.CM));
     }
 
     public void resetHeading() {
@@ -199,7 +209,7 @@ public class Robot {
     }
 
     public void driveInDirection(double direction) {
-        DrivePowers powers = ManualDrive.headingLock(follower, Constants.foresightConfig.headingFeedback.get(), new DrivePowers(0, 0, 0), direction);
+        DrivePowers powers = ManualDrive.headingLock(follower, Constants.foresightConfig.headingFeedback.get(), new DrivePowers(1, 0, 0), direction);
         follower.manual(
                 powers
         );
@@ -210,7 +220,8 @@ public class Robot {
                         forward.getAsDouble(),
                         strafe.getAsDouble(),
                         omega.getAsDouble()
-                )).requiring(follower)
+                )).setEnd((c) ->  follower.manual(0,0,0))
+                .requiring(follower)
                 .setInterruptedBehavior(InterruptedBehavior.SUSPEND)
                 .setPriority(5);
     }
@@ -220,6 +231,14 @@ public class Robot {
                     driveInDirection(direction);
                 }).requiring(follower)
                 .setPriority(10);
+    }
+
+    public Command intakeOnePollen() {
+        return parallel(
+                driveInDirectionCommand(getBiggestPollenDirection()),
+                intakeCommand(() -> 1))
+                .until(() -> intakeSensor.getDistance(DistanceUnit.CM) < INTAKE_EMPTY_DISTANCE_CM)
+                .then(race(intakeCommand(() -> 1),waitMs(500)));
     }
 
     public void setPose(Pose pose) {

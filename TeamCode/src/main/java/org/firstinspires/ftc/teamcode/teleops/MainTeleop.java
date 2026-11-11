@@ -115,7 +115,7 @@ public class MainTeleop extends OpMode {
             schedule(robot.launchCommand().until(() -> gamepad1.rightBumperWasReleased()));
 
         if (gamepad1.xWasPressed()) {
-            schedule(robot.driveInDirectionCommand(robot.getBiggestPollenDirection()).until(() -> gamepad1.xWasReleased()));
+            schedule(robot.intakeOnePollen());
         }
 
 
