@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode;
 import static com.pedropathing.ivy.commands.Commands.waitMs;
 import static com.pedropathing.ivy.groups.Groups.parallel;
 import static com.pedropathing.ivy.groups.Groups.race;
+import static com.pedropathing.ivy.groups.Groups.sequential;
 import static com.pedropathing.ivy.pedro.PedroCommands.follow;
 import static com.qualcomm.robotcore.hardware.DcMotor.ZeroPowerBehavior.BRAKE;
 
@@ -27,6 +28,7 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.pedro.Constants;
 
+import java.util.OptionalDouble;
 import java.util.function.DoubleSupplier;
 
 public class Robot {
@@ -54,6 +56,10 @@ public class Robot {
     public final int LAUNCHER_MIN_VELOCITY = 1200;
 
     public final int INTAKE_EMPTY_DISTANCE_CM = 21;
+
+    public double targetDirection = 0;
+    public double targetingStartDirection = 0;
+    public int targetingLoopsDone = 0;
 
 
     public enum RobotSide {
@@ -229,17 +235,52 @@ public class Robot {
     public Command driveInDirectionCommand(double direction) {
         return Command.build().setExecute(() -> {
                     driveInDirection(direction);
-                }).setEnd((c) ->  follower.manual(0,0,0))
+                }).setEnd((c) -> follower.manual(0, 0, 0))
                 .requiring(follower)
                 .setPriority(10);
     }
 
     public Command intakeOnePollen() {
-        return parallel(
-                driveInDirectionCommand(getBiggestPollenDirection()),
-                intakeCommand(() -> 1))
-                .until(() -> intakeSensor.getDistance(DistanceUnit.CM) < INTAKE_EMPTY_DISTANCE_CM)
-                .then(race(intakeCommand(() -> 1),waitMs(500)));
+        return sequential(
+                rotateUntilPollenDetected(),
+                race(parallel(
+                                driveInDirectionCommand(targetDirection),
+                                intakeCommand(() -> 1))
+                                .until(() -> intakeSensor.getDistance(DistanceUnit.CM) < INTAKE_EMPTY_DISTANCE_CM)
+                                .then(race(intakeCommand(() -> 1), waitMs(500))),
+                        waitMs(2000)));
+    }
+
+    public Command rotateUntilPollenDetected() {
+        return Command.build()
+                .setStart(() -> {
+                    targetingStartDirection = follower.pose().heading();
+                    targetingLoopsDone = 0;
+                })
+                .setExecute(() -> {
+                    follower.manual(0, 0, .2);
+                    telemetry.addData("yo", "rotating");
+                    targetingLoopsDone += 1;
+                }).setDone(() -> {
+                    // if the camera sees a pollen, exit the command
+                    OptionalDouble direction = getBiggestPollenDirection();
+                    if (direction.isPresent()) {
+                        targetDirection = direction.getAsDouble();
+                        return true;
+                    }
+
+                    // if we've done a full rotation, exit command
+                    double currentHeading = follower.pose().heading();
+                    if (Math.abs(targetingStartDirection - currentHeading) < .05 && targetingLoopsDone > 20) {
+                        targetDirection = currentHeading;
+                        return true;
+                    }
+
+                    // if neither end condition is met, we are not done
+                    return false;
+                }).setEnd((c) -> follower.manual(0, 0, 0))
+                .requiring(follower)
+                .setPriority(7);
     }
 
     public void setPose(Pose pose) {
@@ -250,9 +291,9 @@ public class Robot {
         return follow(follower, path);
     }
 
-    public double getBiggestPollenDirection() {
+    public OptionalDouble getBiggestPollenDirection() {
         HuskyLens.Block[] blocks = huskyLens.blocks();
-        if (blocks.length == 0) return follower.pose().heading();
+        if (blocks.length == 0) return OptionalDouble.empty();
         int bestScore = 0;
         HuskyLens.Block primaryBlock = blocks[0];
         for (int i = 0; i < blocks.length; i++) {
@@ -283,7 +324,7 @@ public class Robot {
         );
         double thetaDegrees = Math.toDegrees(thetaRadians);
         telemetry.addData("relative angle", thetaDegrees);
-        return thetaRadians + follower.pose().heading();
+        return OptionalDouble.of(thetaRadians + follower.pose().heading());
     }
 
 }

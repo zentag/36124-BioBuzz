@@ -64,7 +64,7 @@ public class ExampleAuto extends OpMode {
                 robot.followPath(otherSideShoot()),
                 race(robot.launchCommand(), waitMs(3000)),
                 //robot follows camera to collect pollen, robot go back to otherSideShoot
-                lazy(() -> robot.driveInDirectionCommand(robot.getBiggestPollenDirection()))
+                lazy(() -> robot.intakeOnePollen())
 
 
         ));
