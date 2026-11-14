@@ -114,8 +114,12 @@ public class MainTeleop extends OpMode {
         if (gamepad1.rightBumperWasPressed())
             schedule(robot.launchCommand().until(() -> gamepad1.rightBumperWasReleased()));
 
-        if (gamepad1.xWasPressed()) {
+        if (gamepad1.circleWasPressed()) {
             schedule(robot.intakeOnePollen());
+        }
+
+        if (gamepad1.crossWasPressed()) {
+            robot.pollenInRobot -= 1;
         }
 
 
@@ -126,12 +130,6 @@ public class MainTeleop extends OpMode {
      */
     @Override
     public void stop() {
-    }
-
-    public Command driveFieldCentric() {
-        return robot.driveFieldCentricCommand(() -> -gamepad1.left_stick_y,
-                () -> -gamepad1.left_stick_x,
-                () -> -gamepad1.right_stick_x);
     }
 
 

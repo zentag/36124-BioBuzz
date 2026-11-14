@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
+import static com.pedropathing.ivy.Scheduler.schedule;
 import static com.pedropathing.ivy.commands.Commands.waitMs;
 import static com.pedropathing.ivy.groups.Groups.parallel;
 import static com.pedropathing.ivy.groups.Groups.race;
@@ -26,6 +27,9 @@ import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.teamcode.Prism.Color;
+import org.firstinspires.ftc.teamcode.Prism.GoBildaPrismDriver;
+import org.firstinspires.ftc.teamcode.Prism.PrismAnimations;
 import org.firstinspires.ftc.teamcode.pedro.Constants;
 
 import java.util.OptionalDouble;
@@ -40,7 +44,12 @@ public class Robot {
     private CRServo windmillServo = null;
 
     private HuskyLens huskyLens;
-    private DistanceSensor intakeSensor;
+    private DistanceSensor intakeSensorLeft;
+    private DistanceSensor intakeSensorRight;
+
+    GoBildaPrismDriver prism;
+
+    PrismAnimations.Solid solid = new PrismAnimations.Solid(Color.GREEN);
 
     /*
      * These two variables are used to control the velocity of the launcher motor.
@@ -55,12 +64,19 @@ public class Robot {
     public final int LAUNCHER_TARGET_VELOCITY = 1250;
     public final int LAUNCHER_MIN_VELOCITY = 1200;
 
-    public final int INTAKE_EMPTY_DISTANCE_CM = 21;
-
     public double targetDirection = 0;
     public double targetingStartDirection = 0;
     public int targetingLoopsDone = 0;
 
+    public int pollenInRobot = 0;
+    public int pollenInIntake = 0;
+
+    // a new sensor reading has to hold this many loops in a row before we believe it
+    public final int DEBOUNCE_LOOPS = 5;
+    private int lastRawPollen = 0;
+    private int stableLoops = 0;
+
+    private boolean showingFull = false;
 
     public enum RobotSide {
         RED,
@@ -89,7 +105,12 @@ public class Robot {
         rightIntakeServo = hardwareMap.get(CRServo.class, "right_intake_servo");
 
         huskyLens = hardwareMap.get(HuskyLens.class, "huskylens");
-        intakeSensor = hardwareMap.get(DistanceSensor.class, "intake_sensor");
+        intakeSensorLeft = hardwareMap.get(DistanceSensor.class, "intake_sensor_left");
+        intakeSensorRight = hardwareMap.get(DistanceSensor.class, "intake_sensor_right");
+
+        prism = hardwareMap.get(GoBildaPrismDriver.class,"prism");
+        prism.insertAndUpdateAnimation(GoBildaPrismDriver.LayerHeight.LAYER_0, solid);
+
         /*
          * Setting zeroPowerBehavior to BRAKE enables a "brake mode". This causes the motor to
          * slow down much faster when it is coasting. This creates a much more controllable
@@ -131,7 +152,63 @@ public class Robot {
 
     public void loop() {
         follower.update();
-        telemetry.addData("pollen in intake?", intakeSensor.getDistance(DistanceUnit.CM));
+        checkForPollen();
+        boolean full = pollenInRobot > 3;
+        if (full != showingFull) {
+            solid.setPrimaryColor(full ? Color.RED : Color.GREEN);
+            prism.updateAnimationFromIndex(GoBildaPrismDriver.LayerHeight.LAYER_0);
+            showingFull = full;
+        }
+    }
+    public void checkForPollen(){
+        if(pollenInRobot > 3) return;
+        double totalDistance = intakeSensorLeft.getDistance(DistanceUnit.CM) + intakeSensorRight.getDistance(DistanceUnit.CM);
+        int rawPollen;
+        if (totalDistance < 13) {
+            rawPollen = 2;
+        } else if (totalDistance < 30) {
+            rawPollen = 1;
+        } else {
+            rawPollen = 0;
+        }
+
+        // debounce: only accept the reading once it has been the same for DEBOUNCE_LOOPS loops
+        if (rawPollen == lastRawPollen) {
+            stableLoops++;
+        } else {
+            stableLoops = 0;
+        }
+        lastRawPollen = rawPollen;
+
+        int previousPollenInIntake = pollenInIntake;
+        if (stableLoops >= DEBOUNCE_LOOPS) {
+            pollenInIntake = rawPollen;
+            // count each newly arrived pollen once
+            if (pollenInIntake > previousPollenInIntake) {
+                pollenInRobot += pollenInIntake - previousPollenInIntake;
+                if(pollenInRobot > 3){
+                    schedule(preventIntaking());
+                }
+            }
+        }
+
+        telemetry.addData("total distance", totalDistance);
+        telemetry.addData("pollen in intake", pollenInIntake);
+        telemetry.addData("pollen in robot", pollenInRobot);
+    }
+
+    public Command preventIntaking() {
+        return sequential(
+                race(intakeCommand(() -> 1), waitMs(500)),
+                Command.build().setStart(() -> {
+                            intake.setPower(0);
+                            rightIntakeServo.setPower(0);
+                            leftIntakeServo.setPower(0);
+                        }).setDone(() -> pollenInRobot < 4)
+                        .setInterruptedBehavior(InterruptedBehavior.SUSPEND)
+                        .setPriority(7)
+                        .requiring(intake, rightIntakeServo, leftIntakeServo)
+        );
     }
 
     public void resetHeading() {
@@ -241,12 +318,13 @@ public class Robot {
     }
 
     public Command intakeOnePollen() {
+        double previousPollenInRobot = pollenInRobot;
         return sequential(
                 rotateUntilPollenDetected(),
                 race(parallel(
                                 driveInDirectionCommand(targetDirection),
                                 intakeCommand(() -> 1))
-                                .until(() -> intakeSensor.getDistance(DistanceUnit.CM) < INTAKE_EMPTY_DISTANCE_CM)
+                                .until(() -> pollenInRobot > previousPollenInRobot)
                                 .then(race(intakeCommand(() -> 1), waitMs(500))),
                         waitMs(2000)));
     }
