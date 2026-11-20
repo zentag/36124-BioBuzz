@@ -50,7 +50,7 @@ import org.firstinspires.ftc.teamcode.Robot;
 
 public class MainTeleop extends OpMode {
 
-    private Robot robot;
+    public Robot robot;
     public Robot.RobotSide robotSide = Robot.RobotSide.BLUE;
 
     // Create a variable to set to the intake.

@@ -24,6 +24,7 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.DistanceSensor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
@@ -68,13 +69,12 @@ public class Robot {
     public double targetingStartDirection = 0;
     public int targetingLoopsDone = 0;
 
+    public boolean shouldCountPollen = true;
     public int pollenInRobot = 0;
-    public int pollenInIntake = 0;
 
-    // a new sensor reading has to hold this many loops in a row before we believe it
-    public final int DEBOUNCE_LOOPS = 5;
-    private int lastRawPollen = 0;
-    private int stableLoops = 0;
+    private boolean intakeBlocked = false;
+    private int peakPollen = 0;
+    private final ElapsedTime clearTimer = new ElapsedTime();
 
     private boolean showingFull = false;
 
@@ -108,7 +108,7 @@ public class Robot {
         intakeSensorLeft = hardwareMap.get(DistanceSensor.class, "intake_sensor_left");
         intakeSensorRight = hardwareMap.get(DistanceSensor.class, "intake_sensor_right");
 
-        prism = hardwareMap.get(GoBildaPrismDriver.class,"prism");
+        prism = hardwareMap.get(GoBildaPrismDriver.class, "prism");
         prism.insertAndUpdateAnimation(GoBildaPrismDriver.LayerHeight.LAYER_0, solid);
 
         /*
@@ -152,7 +152,7 @@ public class Robot {
 
     public void loop() {
         follower.update();
-        checkForPollen();
+        if(shouldCountPollen) checkForPollen();
         boolean full = pollenInRobot > 3;
         if (full != showingFull) {
             solid.setPrimaryColor(full ? Color.RED : Color.GREEN);
@@ -160,55 +160,51 @@ public class Robot {
             showingFull = full;
         }
     }
-    public void checkForPollen(){
-        if(pollenInRobot > 3) return;
-        double totalDistance = intakeSensorLeft.getDistance(DistanceUnit.CM) + intakeSensorRight.getDistance(DistanceUnit.CM);
+
+    public void checkForPollen() {
+        if (intake.getPowerFloat()) return;
+
+        double NEAR_CM = 14;
+        double EMPTY_CM = 22;
+
+        double left = intakeSensorLeft.getDistance(DistanceUnit.CM);
+        double right = intakeSensorRight.getDistance(DistanceUnit.CM);
+
+        telemetry.addData("left", left);
+        telemetry.addData("right", right);
+
         int rawPollen;
-        if (totalDistance < 13) {
-            rawPollen = 2;
-        } else if (totalDistance < 30) {
-            rawPollen = 1;
+        if (left < NEAR_CM && right < NEAR_CM) {
+            rawPollen = 2;          // each sensor has a pollen right in front of it
+        } else if (left < EMPTY_CM - 2 || right < EMPTY_CM - 2) {
+            rawPollen = 1;          // something is in there
         } else {
             rawPollen = 0;
         }
 
-        // debounce: only accept the reading once it has been the same for DEBOUNCE_LOOPS loops
-        if (rawPollen == lastRawPollen) {
-            stableLoops++;
-        } else {
-            stableLoops = 0;
+        if (rawPollen > 0) {
+            intakeBlocked = true;
+            peakPollen = Math.max(peakPollen, rawPollen);
+            clearTimer.reset();
+        } else if (intakeBlocked && clearTimer.milliseconds() > 150) {
+            // pass is over: count it once, using the most we saw during it
+            pollenInRobot += peakPollen;
+            intakeBlocked = false;
+            peakPollen = 0;
+            if (pollenInRobot > 3) schedule(preventIntaking());
         }
-        lastRawPollen = rawPollen;
-
-        int previousPollenInIntake = pollenInIntake;
-        if (stableLoops >= DEBOUNCE_LOOPS) {
-            pollenInIntake = rawPollen;
-            // count each newly arrived pollen once
-            if (pollenInIntake > previousPollenInIntake) {
-                pollenInRobot += pollenInIntake - previousPollenInIntake;
-                if(pollenInRobot > 3){
-                    schedule(preventIntaking());
-                }
-            }
-        }
-
-        telemetry.addData("total distance", totalDistance);
-        telemetry.addData("pollen in intake", pollenInIntake);
-        telemetry.addData("pollen in robot", pollenInRobot);
     }
 
+
     public Command preventIntaking() {
-        return sequential(
-                race(intakeCommand(() -> 1), waitMs(500)),
-                Command.build().setStart(() -> {
-                            intake.setPower(0);
-                            rightIntakeServo.setPower(0);
-                            leftIntakeServo.setPower(0);
-                        }).setDone(() -> pollenInRobot < 4)
-                        .setInterruptedBehavior(InterruptedBehavior.SUSPEND)
-                        .setPriority(7)
-                        .requiring(intake, rightIntakeServo, leftIntakeServo)
-        );
+        return Command.build().setStart(() -> {
+                    intake.setPower(0);
+                    rightIntakeServo.setPower(0);
+                    leftIntakeServo.setPower(0);
+                }).setDone(() -> pollenInRobot < 4)
+                .setInterruptedBehavior(InterruptedBehavior.SUSPEND)
+                .setPriority(7)
+                .requiring(intake, rightIntakeServo, leftIntakeServo);
     }
 
     public void resetHeading() {
