@@ -6,7 +6,9 @@ import org.firstinspires.ftc.teamcode.Robot;
 
 @Autonomous(name="Near Flower - RED")
 public class RedNearFlower extends MainAuto {
-    public Robot.RobotSide robotSide = Robot.RobotSide.RED;
-    public StartPosition startPosition = StartPosition.NEAR_FLOWER;
+    public RedNearFlower() {
+        robotSide = Robot.RobotSide.RED;
+        startPosition = StartPosition.NEAR_FLOWER;
+    }
 
 }

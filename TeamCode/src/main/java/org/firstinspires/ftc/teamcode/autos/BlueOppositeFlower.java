@@ -6,7 +6,9 @@ import org.firstinspires.ftc.teamcode.Robot;
 
 @Autonomous(name="Opposite Flower - BLUE")
 public class BlueOppositeFlower extends MainAuto {
-    public Robot.RobotSide robotSide = Robot.RobotSide.BLUE;
-    public StartPosition startPosition = StartPosition.OPPOSITE_FLOWER;
+    public BlueOppositeFlower() {
+        robotSide = Robot.RobotSide.BLUE;
+        startPosition = StartPosition.OPPOSITE_FLOWER;
+    }
 
 }

@@ -1,13 +1,19 @@
 package org.firstinspires.ftc.teamcode;
 
+import static com.pedropathing.api.Paths.line;
 import static com.pedropathing.ivy.Scheduler.schedule;
+import static com.pedropathing.ivy.commands.Commands.lazy;
 import static com.pedropathing.ivy.commands.Commands.waitMs;
 import static com.pedropathing.ivy.groups.Groups.parallel;
 import static com.pedropathing.ivy.groups.Groups.race;
+import static com.pedropathing.ivy.groups.Groups.repeat;
 import static com.pedropathing.ivy.groups.Groups.sequential;
 import static com.pedropathing.ivy.pedro.PedroCommands.follow;
 import static com.qualcomm.robotcore.hardware.DcMotor.ZeroPowerBehavior.BRAKE;
 
+import android.graphics.RectF;
+
+import com.pedropathing.api.PoseFactory;
 import com.pedropathing.drivetrain.DrivePowers;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.follower.ManualDrive;
@@ -87,6 +93,28 @@ public class Robot {
     private final Telemetry telemetry;
     private final RobotSide robotSide;
 
+    public Pose[] safePoints;
+    public RectF[] obstacles;
+
+    public static final float FIELD_SIZE = 141.5F;
+    public static final float TILE = 24;
+    public static final float EDGE_TILE = 22.75F;
+    public static final float FLOWER_SIZE = 6;
+    public static final float ROBOT_DIAGONAL = 26;
+    public static final float OBSTACLE_CLEARANCE = ROBOT_DIAGONAL / 2;
+
+    private static RectF square(float centerX, float centerY, float size) {
+        float half = size / 2;
+        return new RectF(centerX - half, centerY - half, centerX + half, centerY + half);
+    }
+
+    public enum HiveTipped {
+        TOWARDS_FLOWER,
+        AWAY_FROM_FLOWER
+    }
+
+    public HiveTipped hiveDirection = HiveTipped.TOWARDS_FLOWER;
+
 
     public Robot(Telemetry telemetry, HardwareMap hardwareMap, RobotSide robotSide) {
         Scheduler.reset();
@@ -142,6 +170,46 @@ public class Robot {
          */
         leftArmServo.setDirection(Servo.Direction.REVERSE);
         windmillServo.setDirection(DcMotorSimple.Direction.REVERSE);
+
+        PoseFactory p = PoseFactory.degrees();
+
+        if (robotSide == RobotSide.RED) {
+            double center = FIELD_SIZE / 2;
+            p = p.mirrorAroundPoint(center, center);
+        }
+
+        safePoints = new Pose[]{
+                p.of(82, 22, 0),
+                p.of(120, 124, 0),
+                p.of(115, 33, 0)
+        };
+
+
+        // flower 1 is against the left wall (x = 0), centered two tiles up.
+        // each next flower is the one before it rotated 90 degrees around the field center,
+        // which puts them against the bottom, right and top walls.
+        // this layout is the same after a 180 degree turn, so red and blue don't need different values
+        float wallOffset = FLOWER_SIZE / 2;   // flower center is half a flower away from its wall
+        float twoTiles = EDGE_TILE + TILE;    // the seam two tiles from the wall: 46.75
+
+        obstacles = new RectF[]{
+                // middle of the field (RectF wants left, top, right, bottom with top < bottom)
+                new RectF(42.75F, 51.25F, 98.75F, 90.25F),
+
+                // flowers
+                square(wallOffset, twoTiles, FLOWER_SIZE),                           // left wall
+                square(FIELD_SIZE - twoTiles, wallOffset, FLOWER_SIZE),              // bottom wall
+                square(FIELD_SIZE - wallOffset, FIELD_SIZE - twoTiles, FLOWER_SIZE), // right wall
+                square(twoTiles, FIELD_SIZE - wallOffset, FLOWER_SIZE),              // top wall
+        };
+
+        // grow every obstacle so the robot's corners can't clip it (a negative inset grows the rectangle)
+        for (RectF obstacle : obstacles) {
+            obstacle.inset(-OBSTACLE_CLEARANCE, -OBSTACLE_CLEARANCE);
+        }
+
+        updateHiveDirection();
+
         /*
          * Tell the driver that initialization is complete.
          */
@@ -286,6 +354,81 @@ public class Robot {
         }).setDone(() -> true).requiring(leftArmServo, rightArmServo);
     }
 
+    public Command driveToPoint(Pose target) {
+        return sequential(
+                repeat(lazy(() -> driveToBestSafePoint(target)), safePoints.length)
+                        .until(() -> isPathClear(straightPath(follower.pose(), target))),
+                lazy(() -> {
+                    Path finalPath = straightPath(follower.pose(), target);
+                    if (!isPathClear(finalPath)) return Command.NOOP;
+                    return follow(follower, finalPath);
+                })
+        );
+    }
+
+    private Path straightPath(Pose from, Pose to) {
+        return line(from, to).linear(from, to);
+    }
+
+    public Command driveToBestSafePoint(Pose target) {
+        Pose here = follower.pose();
+
+        Path bestPath = null;
+        double bestDistance = Double.MAX_VALUE;
+
+        Pose nearestPoint = null;
+        double nearestDistance = Double.MAX_VALUE;
+
+        for (Pose point : safePoints) {
+            double fromRobot = Math.hypot(point.x() - here.x(), point.y() - here.y());
+            if (fromRobot < 3) continue;
+
+            if (fromRobot < nearestDistance) {
+                nearestPoint = point;
+                nearestDistance = fromRobot;
+            }
+
+            Path proposedPath = straightPath(here, point);
+            if (!isPathClear(proposedPath)) continue;
+            double toTarget = Math.hypot(point.x() - target.x(), point.y() - target.y());
+            if (toTarget < bestDistance) {
+                bestPath = proposedPath;
+                bestDistance = toTarget;
+            }
+        }
+
+        if (bestPath == null && nearestPoint != null) bestPath = straightPath(here, nearestPoint);
+        if (bestPath == null) return Command.NOOP;
+        return follow(follower, bestPath);
+    }
+
+    public Pose getPose() {
+        return follower.pose();
+    }
+
+    public boolean isPathClear(Path path) {
+        // the area the robot's center can be in without its corners hitting a wall
+        RectF fullUsableField = new RectF(0, 0, FIELD_SIZE, FIELD_SIZE);
+        fullUsableField.inset(OBSTACLE_CLEARANCE, OBSTACLE_CLEARANCE);
+
+        int samples = 50;
+        for (int i = 0; i <= samples; i++) {
+            Pose pose = path.get(i / (double) samples);
+            float x = (float) pose.x();
+            float y = (float) pose.y();
+
+            // the start and end are known good spots (like the shooting position against the wall),
+            // so only check the walls in the middle of the path
+            boolean nearEnds = i < samples / 5 || i > samples - samples / 5;
+            if (!nearEnds && !fullUsableField.contains(x, y)) return false;
+
+            for (RectF r : obstacles) {
+                if (r.contains(x, y)) return false;
+            }
+        }
+        return true;
+    }
+
     public void driveInDirection(double direction) {
         DrivePowers powers = ManualDrive.headingLock(follower, Constants.foresightConfig.headingFeedback.get(), new DrivePowers(1, 0, 0), direction);
         follower.manual(
@@ -362,6 +505,11 @@ public class Robot {
 
     public Command followPath(Path path) {
         return follow(follower, path);
+    }
+
+
+    private void updateHiveDirection() {
+        // TODO: implement
     }
 
     public OptionalDouble getBiggestPollenDirection() {
