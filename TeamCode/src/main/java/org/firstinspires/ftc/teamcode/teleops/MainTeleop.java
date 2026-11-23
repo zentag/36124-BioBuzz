@@ -81,7 +81,7 @@ public class MainTeleop extends OpMode {
                 () -> -gamepad1.left_stick_x,
                 () -> -gamepad1.right_stick_x));
         schedule(robot.intakeCommand(() -> intakePower));
-
+        schedule(robot.setFlowerArmState(Robot.FlowerArmState.STOWED));
     }
 
     /*
@@ -122,8 +122,16 @@ public class MainTeleop extends OpMode {
             robot.pollenInRobot -= 1;
         }
 
+        if (gamepad1.dpadDownWasPressed()) {
+            schedule(robot.setFlowerArmState(Robot.FlowerArmState.DEPLOYED));
+        }
+
+        if (gamepad1.dpadUpWasPressed()) {
+            schedule(robot.setFlowerArmState(Robot.FlowerArmState.STOWED));
+        }
 
     }
+
 
     /*
      * Code to run ONCE after the driver hits STOP

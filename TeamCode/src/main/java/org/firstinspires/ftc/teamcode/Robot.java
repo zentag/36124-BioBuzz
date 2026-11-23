@@ -18,6 +18,7 @@ import com.pedropathing.math.Pose;
 import com.pedropathing.paths.Path;
 import com.qualcomm.hardware.dfrobot.HuskyLens;
 import com.qualcomm.robotcore.hardware.CRServo;
+import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
@@ -40,8 +41,8 @@ public class Robot {
     private Follower follower;
     private DcMotorEx launcher = null;
     private DcMotor intake = null;
-    private CRServo leftIntakeServo = null;
-    private CRServo rightIntakeServo = null;
+    private Servo leftArmServo = null;
+    private Servo rightArmServo = null;
     private CRServo windmillServo = null;
 
     private HuskyLens huskyLens;
@@ -101,8 +102,8 @@ public class Robot {
         intake = hardwareMap.get(DcMotor.class, "intake");
         launcher = hardwareMap.get(DcMotorEx.class, "launcher");
         windmillServo = hardwareMap.get(CRServo.class, "windmill");
-        leftIntakeServo = hardwareMap.get(CRServo.class, "left_intake_servo");
-        rightIntakeServo = hardwareMap.get(CRServo.class, "right_intake_servo");
+        leftArmServo = hardwareMap.get(Servo.class, "left_arm_servo");
+        rightArmServo = hardwareMap.get(Servo.class, "right_arm_servo");
 
         huskyLens = hardwareMap.get(HuskyLens.class, "huskylens");
         intakeSensorLeft = hardwareMap.get(DistanceSensor.class, "intake_sensor_left");
@@ -133,17 +134,14 @@ public class Robot {
         /*
          * set Feeders to an initial value to initialize the servo controller
          */
-        leftIntakeServo.setPower(0);
-        rightIntakeServo.setPower(0);
         windmillServo.setPower(0);
 
         /*
-         * Much like our drivetrain motors, we set the left intake servo to reverse so that both
-         * servos work to pull elements into the intake.
+         * The arm servos face each other, so reverse the left one so the same position
+         * moves both sides of the arm the same way.
          */
-        leftIntakeServo.setDirection(DcMotorSimple.Direction.REVERSE);
+        leftArmServo.setDirection(Servo.Direction.REVERSE);
         windmillServo.setDirection(DcMotorSimple.Direction.REVERSE);
-
         /*
          * Tell the driver that initialization is complete.
          */
@@ -152,7 +150,7 @@ public class Robot {
 
     public void loop() {
         follower.update();
-        if(shouldCountPollen) checkForPollen();
+        if (shouldCountPollen) checkForPollen();
         boolean full = pollenInRobot > 3;
         if (full != showingFull) {
             solid.setPrimaryColor(full ? Color.RED : Color.GREEN);
@@ -199,12 +197,10 @@ public class Robot {
     public Command preventIntaking() {
         return Command.build().setStart(() -> {
                     intake.setPower(0);
-                    rightIntakeServo.setPower(0);
-                    leftIntakeServo.setPower(0);
                 }).setDone(() -> pollenInRobot < 4)
                 .setInterruptedBehavior(InterruptedBehavior.SUSPEND)
                 .setPriority(7)
-                .requiring(intake, rightIntakeServo, leftIntakeServo);
+                .requiring(intake);
     }
 
     public void resetHeading() {
@@ -225,19 +221,6 @@ public class Robot {
         telemetry.addData("Robot Y", robotPose.y());
         telemetry.addData("Robot Heading", Math.toDegrees(robotPose.heading()));
 
-    }
-
-    public void intake(double intakePower) {
-        /*
-         * Here we set our intake motor and servos to their intake power. The order of operations
-         * here is important though. The gamepad triggers define the starting point for the intake
-         * power variable in each loop of our code, but inside our launch function we also sometimes
-         * change the intake power. So we need to give our launch function a chance to modify the
-         * variable before we write it to our motor and servos.
-         */
-        intake.setPower(intakePower);
-        leftIntakeServo.setPower(intakePower);
-        rightIntakeServo.setPower(intakePower);
     }
 
     void launch() {
@@ -261,7 +244,7 @@ public class Robot {
         telemetry.addData("launcher velo", launcher.getVelocity());
         if (launcher.getVelocity() > LAUNCHER_MIN_VELOCITY) {
             windmillServo.setPower(1);
-            intake(.5);
+            intake.setPower(.5);
         } else {
             windmillServo.setPower(0);
         }
@@ -278,13 +261,29 @@ public class Robot {
     }
 
     public Command intakeCommand(DoubleSupplier intakePower) {
-        return Command.build().setExecute(() -> intake(intakePower.getAsDouble())).setEnd((c) -> {
+        return Command.build().setExecute(() -> {
+                    intake.setPower(intakePower.getAsDouble());
+                }).setEnd((c) -> {
                     intake.setPower(0);
-                    leftIntakeServo.setPower(0);
-                    rightIntakeServo.setPower(0);
-                }).requiring(intake, leftIntakeServo, rightIntakeServo)
+                }).requiring(intake)
                 .setInterruptedBehavior(InterruptedBehavior.SUSPEND)
                 .setPriority(5);
+    }
+
+    public enum FlowerArmState {
+        STOWED,
+        DEPLOYED
+    }
+
+    public Command setFlowerArmState(FlowerArmState state) {
+        return Command.build().setStart(() -> {
+            double position = 0;
+            if (state == FlowerArmState.DEPLOYED) position = 0.3;
+
+            leftArmServo.setPosition(position);
+            rightArmServo.setPosition(position);
+
+        }).setDone(() -> true).requiring(leftArmServo, rightArmServo);
     }
 
     public void driveInDirection(double direction) {
