@@ -4,9 +4,7 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 
 import org.firstinspires.ftc.teamcode.Robot;
-import org.firstinspires.ftc.teamcode.pedro.Constants;
 
-import com.pedropathing.follower.Follower;
 import com.pedropathing.api.PoseFactory;
 import com.pedropathing.math.Pose;
 
@@ -20,11 +18,9 @@ import static com.pedropathing.ivy.commands.Commands.lazy;
 import static com.pedropathing.ivy.commands.Commands.waitMs;
 import static com.pedropathing.ivy.groups.Groups.race;
 import static com.pedropathing.ivy.groups.Groups.sequential;
-import static com.pedropathing.ivy.pedro.PedroCommands.follow;
 
 
-@Autonomous
-public class ExampleAuto extends OpMode {
+public class MainAuto extends OpMode {
     private final PoseFactory p = PoseFactory.degrees();
 
     private final Pose startPose = p.of(58, 8, -90);
@@ -33,11 +29,20 @@ public class ExampleAuto extends OpMode {
     private final Pose toOtherSideShoot = p.of(58, 130, 90);
     private final Pose otherSideControl1 = p.of(57, 94, 0);
     private final Pose otherSideControl2 = p.of(5, 67, 0);
+
     private Robot robot;
+
+    public Robot.RobotSide robotSide = Robot.RobotSide.BLUE;
+    public StartPosition startPosition = StartPosition.NEAR_FLOWER;
+
+    public enum StartPosition {
+        NEAR_FLOWER,
+        OPPOSITE_FLOWER
+    }
 
     @Override
     public void init() {
-        robot = new Robot(telemetry, hardwareMap, Robot.RobotSide.BLUE);
+        robot = new Robot(telemetry, hardwareMap, robotSide);
         Scheduler.reset();
 
         robot.setPose(startPose);
