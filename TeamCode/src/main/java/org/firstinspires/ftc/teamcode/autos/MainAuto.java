@@ -2,21 +2,16 @@ package org.firstinspires.ftc.teamcode.autos; // This should match the file loca
 
 import com.pedropathing.ivy.Command;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
-import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 
 import org.firstinspires.ftc.teamcode.Robot;
 
 import com.pedropathing.api.PoseFactory;
 import com.pedropathing.math.Pose;
 
-import static com.pedropathing.api.Paths.*;
-
-import com.pedropathing.paths.Path;
 import com.pedropathing.ivy.Scheduler;
 
 import static com.pedropathing.ivy.Scheduler.schedule;
 import static com.pedropathing.ivy.commands.Commands.conditional;
-import static com.pedropathing.ivy.commands.Commands.lazy;
 import static com.pedropathing.ivy.commands.Commands.waitMs;
 import static com.pedropathing.ivy.groups.Groups.race;
 import static com.pedropathing.ivy.groups.Groups.repeat;
@@ -51,11 +46,12 @@ public class MainAuto extends OpMode {
         OPPOSITE_FLOWER
     }
 
+    private PoseFactory p = PoseFactory.degrees();
+
     @Override
     public void init() {
         // all poses are written for blue. red's side of the field is blue's turned 180 degrees
         // around the center, so rotate every pose (position and heading) for red
-        PoseFactory p = PoseFactory.degrees();
         if (robotSide == Robot.RobotSide.RED) p = p.mirrorAroundPoint(70.75, 70.75);
 
         startPose = p.of(58, 8, -90);
@@ -82,10 +78,21 @@ public class MainAuto extends OpMode {
     }
 
     private Command intakeFromFlower(Flower location) {
-
+        double directionToDrive = robotSide == Robot.RobotSide.BLUE ? 1 : -1;
+        Pose current = robot.getPose();
+        Pose poseToAdd = new Pose(0,0,0);
+        double DISTANCE_TO_FLOWER = 4;
+        switch (location){
+            case HIVE:
+                poseToAdd = p.of(0,-DISTANCE_TO_FLOWER,0);
+                break;
+            case SIDE:
+                poseToAdd = p.of(DISTANCE_TO_FLOWER,0,0);
+                break;
+        }
         return sequential(
                 robot.setFlowerArmState(Robot.FlowerArmState.DEPLOYED),
-                // TODO: drive into flower
+                robot.followPath(robot.straightPath(current,current.plus(poseToAdd))),
                 robot.intakeCommand(() -> 1)
         );
     }
@@ -135,8 +142,19 @@ public class MainAuto extends OpMode {
     }
 
     public Command autoShoot() {
-        // TODO: implement
-        return Command.NOOP;
+        Pose shootingLocation = new Pose(0,0,0);
+        switch(robot.placeToShoot){
+            case TOWARDS_FLOWER:
+                shootingLocation = p.of(82,8,90);
+                break;
+            case AWAY_FROM_FLOWER:
+                shootingLocation = p.of(84,133.5,270);
+                break;
+        }
+        return sequential(
+                robot.driveToPoint(shootingLocation),
+                robot.launchCommand()
+        );
     }
 
 

@@ -24,6 +24,7 @@ import com.pedropathing.math.Pose;
 import com.pedropathing.paths.Path;
 import com.qualcomm.hardware.dfrobot.HuskyLens;
 import com.qualcomm.robotcore.hardware.CRServo;
+import com.qualcomm.robotcore.hardware.ColorRangeSensor;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
@@ -54,6 +55,18 @@ public class Robot {
     private HuskyLens huskyLens;
     private DistanceSensor intakeSensorLeft;
     private DistanceSensor intakeSensorRight;
+    private ColorRangeSensor intakeColorLeft;
+    private ColorRangeSensor intakeColorRight;
+
+    // pollen yellow is matched by hue (the "which color" part of HSV), which stays about the same
+    // no matter how close or bright the pollen is. pure yellow is 60. tune these from telemetry
+    public static final float YELLOW_MIN_HUE = 40;
+    public static final float YELLOW_MAX_HUE = 90;
+    // below this saturation the reading is grey/white (nothing in front of the sensor), not yellow
+    public static final float YELLOW_MIN_SATURATION = 0.4F;
+    // boosts the raw readings so dim colors still give a usable hue
+    public static final float COLOR_SENSOR_GAIN = 4;
+
 
     GoBildaPrismDriver prism;
 
@@ -108,12 +121,12 @@ public class Robot {
         return new RectF(centerX - half, centerY - half, centerX + half, centerY + half);
     }
 
-    public enum HiveTipped {
+    public enum HiveTippedUp {
         TOWARDS_FLOWER,
         AWAY_FROM_FLOWER
     }
 
-    public HiveTipped hiveDirection = HiveTipped.TOWARDS_FLOWER;
+    public HiveTippedUp placeToShoot = HiveTippedUp.TOWARDS_FLOWER;
 
 
     public Robot(Telemetry telemetry, HardwareMap hardwareMap, RobotSide robotSide) {
@@ -136,6 +149,11 @@ public class Robot {
         huskyLens = hardwareMap.get(HuskyLens.class, "huskylens");
         intakeSensorLeft = hardwareMap.get(DistanceSensor.class, "intake_sensor_left");
         intakeSensorRight = hardwareMap.get(DistanceSensor.class, "intake_sensor_right");
+        intakeColorLeft = hardwareMap.get(ColorRangeSensor.class,"intake_color_left");
+        intakeColorRight = hardwareMap.get(ColorRangeSensor.class,"intake_color_right");
+        intakeColorLeft.setGain(COLOR_SENSOR_GAIN);
+        intakeColorRight.setGain(COLOR_SENSOR_GAIN);
+
 
         prism = hardwareMap.get(GoBildaPrismDriver.class, "prism");
         prism.insertAndUpdateAnimation(GoBildaPrismDriver.LayerHeight.LAYER_0, solid);
@@ -225,6 +243,26 @@ public class Robot {
             prism.updateAnimationFromIndex(GoBildaPrismDriver.LayerHeight.LAYER_0);
             showingFull = full;
         }
+
+        float[] leftHsv = readHsv(intakeColorLeft);
+        float[] rightHsv = readHsv(intakeColorRight);
+        telemetry.addData("left color", "hue %.0f  sat %.2f  yellow? %b", leftHsv[0], leftHsv[1], isPollenYellow(leftHsv));
+        telemetry.addData("right color", "hue %.0f  sat %.2f  yellow? %b", rightHsv[0], rightHsv[1], isPollenYellow(rightHsv));
+    }
+
+    // the sensor's current color as {hue 0-360, saturation 0-1, value 0-1}
+    private float[] readHsv(ColorRangeSensor sensor) {
+        float[] hsv = new float[3];
+        android.graphics.Color.colorToHSV(sensor.getNormalizedColors().toColor(), hsv);
+        return hsv;
+    }
+
+    private boolean isPollenYellow(float[] hsv) {
+        return hsv[0] >= YELLOW_MIN_HUE && hsv[0] <= YELLOW_MAX_HUE && hsv[1] >= YELLOW_MIN_SATURATION;
+    }
+
+    public boolean isPollenYellow(ColorRangeSensor sensor) {
+        return isPollenYellow(readHsv(sensor));
     }
 
     public void checkForPollen() {
@@ -318,7 +356,7 @@ public class Robot {
         }
         telemetry.addData("servo power", windmillServo.getPower());
     }
-
+// TODO: make this finish at some point
     public Command launchCommand() {
         return Command.build().setExecute(this::launch).setEnd((c) -> {
                     windmillServo.setPower(0);
@@ -366,7 +404,7 @@ public class Robot {
         );
     }
 
-    private Path straightPath(Pose from, Pose to) {
+    public Path straightPath(Pose from, Pose to) {
         return line(from, to).linear(from, to);
     }
 
