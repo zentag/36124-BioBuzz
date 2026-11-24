@@ -7,6 +7,6 @@ public class TestTeleop extends MainTeleop{
     @Override
     public void init(){
         super.init();
-        robot.shouldCountPollen = false;
+        robot.intake.shouldCountPollen = false;
     }
 }

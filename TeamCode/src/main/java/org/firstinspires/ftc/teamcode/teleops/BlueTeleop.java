@@ -6,5 +6,7 @@ import org.firstinspires.ftc.teamcode.Robot;
 
 @TeleOp(name="Main Teleop - BLUE",group="StarterBot")
 public class BlueTeleop extends MainTeleop {
-    public Robot.RobotSide robotSide = Robot.RobotSide.BLUE;
+    public BlueTeleop() {
+        robotSide = Robot.RobotSide.BLUE;
+    }
 }

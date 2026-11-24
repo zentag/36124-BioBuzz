@@ -4,6 +4,7 @@ import com.pedropathing.ivy.Command;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 
 import org.firstinspires.ftc.teamcode.Robot;
+import org.firstinspires.ftc.teamcode.subsystems.FlowerArm;
 
 import com.pedropathing.api.PoseFactory;
 import com.pedropathing.math.Pose;
@@ -69,7 +70,7 @@ public class MainAuto extends OpMode {
         robot = new Robot(telemetry, hardwareMap, robotSide);
         Scheduler.reset();
 
-        robot.setPose(startPose);
+        robot.drivetrain.setPose(startPose);
     }
 
     public enum Flower {
@@ -79,7 +80,7 @@ public class MainAuto extends OpMode {
 
     private Command intakeFromFlower(Flower location) {
         double directionToDrive = robotSide == Robot.RobotSide.BLUE ? 1 : -1;
-        Pose current = robot.getPose();
+        Pose current = robot.drivetrain.getPose();
         Pose poseToAdd = new Pose(0,0,0);
         double DISTANCE_TO_FLOWER = 4;
         switch (location){
@@ -91,9 +92,9 @@ public class MainAuto extends OpMode {
                 break;
         }
         return sequential(
-                robot.setFlowerArmState(Robot.FlowerArmState.DEPLOYED),
-                robot.followPath(robot.straightPath(current,current.plus(poseToAdd))),
-                robot.intakeCommand(() -> 1)
+                robot.flowerArm.setState(FlowerArm.State.DEPLOYED),
+                robot.drivetrain.followPath(robot.drivetrain.straightPath(current,current.plus(poseToAdd))),
+                robot.intake.intakeCommand(() -> 1)
         );
     }
 
@@ -104,7 +105,7 @@ public class MainAuto extends OpMode {
         int bestLocationIndex = 0;
         for (int i = 0; i < availableIntakeLocations.size(); i++) {
             IntakeLocation location = availableIntakeLocations.get(i);
-            Pose current = robot.getPose();
+            Pose current = robot.drivetrain.getPose();
             Pose target;
             Command proposedActionOnceAtLocation;
             switch (location) {
@@ -117,7 +118,7 @@ public class MainAuto extends OpMode {
                     target = sideFlowerApproach;
                     break;
                 case GARDEN:
-                    proposedActionOnceAtLocation = race(robot.intakeCommand(() -> 1), waitMs(2000));
+                    proposedActionOnceAtLocation = race(robot.intake.intakeCommand(() -> 1), waitMs(2000));
                     target = garden;
                     break;
                 default:
@@ -132,11 +133,11 @@ public class MainAuto extends OpMode {
             }
         }
         if (bestTarget == null || actionOnceAtLocation == null ) {
-            return repeat(robot.intakeOnePollen(), 5).until(() -> robot.pollenInRobot > 3);
+            return repeat(robot.intakeOnePollen(), 5).until(() -> robot.intake.pollenInRobot > 3);
         }
         availableIntakeLocations.remove(bestLocationIndex);
         return sequential(
-                robot.driveToPoint(bestTarget),
+                robot.drivetrain.driveToPoint(bestTarget),
                 actionOnceAtLocation
         );
     }
@@ -152,8 +153,8 @@ public class MainAuto extends OpMode {
                 break;
         }
         return sequential(
-                robot.driveToPoint(shootingLocation),
-                robot.launchCommand()
+                robot.drivetrain.driveToPoint(shootingLocation),
+                robot.launcher.launchCommand()
         );
     }
 
@@ -165,7 +166,7 @@ public class MainAuto extends OpMode {
     @Override
     public void start() {
         Command shootOrIntake = repeat(
-                conditional(() -> robot.pollenInRobot > 3, autoShoot(), intakePollen()),
+                conditional(() -> robot.intake.pollenInRobot > 3, autoShoot(), intakePollen()),
                 10
         );
         // TODO: park condition and parking

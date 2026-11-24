@@ -31,6 +31,7 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.teamcode.Robot;
+import org.firstinspires.ftc.teamcode.subsystems.FlowerArm;
 
 
 /*
@@ -77,11 +78,11 @@ public class MainTeleop extends OpMode {
     @Override
     public void start() {
         // these low priority commands will be run whenever nothing of higher priority is running
-        schedule(robot.driveFieldCentricCommand(() -> -gamepad1.left_stick_y,
+        schedule(robot.drivetrain.driveFieldCentricCommand(() -> -gamepad1.left_stick_y,
                 () -> -gamepad1.left_stick_x,
                 () -> -gamepad1.right_stick_x));
-        schedule(robot.intakeCommand(() -> intakePower));
-        schedule(robot.setFlowerArmState(Robot.FlowerArmState.STOWED));
+        schedule(robot.intake.intakeCommand(() -> intakePower));
+        schedule(robot.flowerArm.setState(FlowerArm.State.STOWED));
     }
 
     /*
@@ -91,7 +92,7 @@ public class MainTeleop extends OpMode {
     public void loop() {
         Scheduler.execute();
         robot.loop();
-        if (gamepad1.options) robot.resetHeading();
+        if (gamepad1.options) robot.drivetrain.resetHeading();
 
         /*
          * Set the intake power variable to equal the right trigger, minus the left trigger.
@@ -112,22 +113,22 @@ public class MainTeleop extends OpMode {
          * to feed the elements into the launcher wheel.
          */
         if (gamepad1.rightBumperWasPressed())
-            schedule(robot.launchCommand().until(() -> gamepad1.rightBumperWasReleased()));
+            schedule(robot.launcher.launchCommand().until(() -> gamepad1.rightBumperWasReleased()));
 
         if (gamepad1.circleWasPressed()) {
             schedule(robot.intakeOnePollen());
         }
 
         if (gamepad1.crossWasPressed()) {
-            robot.pollenInRobot -= 1;
+            robot.intake.pollenInRobot -= 1;
         }
 
         if (gamepad1.dpadDownWasPressed()) {
-            schedule(robot.setFlowerArmState(Robot.FlowerArmState.DEPLOYED));
+            schedule(robot.flowerArm.setState(FlowerArm.State.DEPLOYED));
         }
 
         if (gamepad1.dpadUpWasPressed()) {
-            schedule(robot.setFlowerArmState(Robot.FlowerArmState.STOWED));
+            schedule(robot.flowerArm.setState(FlowerArm.State.STOWED));
         }
 
     }
